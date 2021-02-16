@@ -90,11 +90,14 @@ sealed abstract class Statement extends AbstractSyntaxTree {
 
   // Raghuveer changes
 
+  def makeDotLines(s: (Long, Long)): String = s"${s._1} -> ${s._2}"
+
   case class LabelProps(label_init: Label, label_final: List[Label], label_flow: List[(Label, Label)]) {
     def reverse_flow = this.label_flow.reverse
   }
 
   var labelProps: LabelProps = _
+  var dotLines: List[String] = List()
 
 
   def generateLabelProps {
@@ -115,12 +118,20 @@ sealed abstract class Statement extends AbstractSyntaxTree {
         val label_final = thenPart.labelProps.label_final ++ elsePart.labelProps.label_final
         val label_flow: List[(Label, Label)] = thenPart.labelProps.label_flow ++ elsePart.labelProps.label_flow ++ List((this.id, thenPart.labelProps.label_init), (this.id, elsePart.labelProps.label_init))
         this.labelProps = LabelProps(this.id, label_final, label_flow)
+        this.dotLines = this.dotLines ++ label_flow.map(makeDotLines)
         }
       case WhileStmt(_, body) => {
         body.generateLabelProps
         // for while init and final are gonna be same
-        val label_flow: List[(Label, Label)] = body.labelProps.label_flow ++ List((this.id, body.labelProps.label_init)) ++ body.labelProps.label_final.map((_, this.id))
+        val label_flow: List[(Label, Label)] = List((this.id, body.labelProps.label_init)) ++ body.labelProps.label_flow ++ body.labelProps.label_final.map((_, this.id))
         this.labelProps = LabelProps(this.id, List(this.id), label_flow)
+
+
+        this.dotLines = this.dotLines :+ s"subgraph cluster${this.id} {"
+        this.dotLines = this.dotLines ++ List(makeDotLines(this.id, body.labelProps.label_init)) ++ body.labelProps.label_final.map(p => makeDotLines(p, this.id))
+        this.dotLines = this.dotLines ++ body.dotLines
+        this.dotLines = this.dotLines ++ List(s"""label = "while - ${this.asInstanceOf[WhileStmt].cond.toString}" """)
+        this.dotLines = this.dotLines :+ "}"
       }
       case BlockStmt(stmts) => {
         // for each stmt generate the label props
@@ -130,8 +141,11 @@ sealed abstract class Statement extends AbstractSyntaxTree {
         // final is same as final statement of the block
         val label_final = stmts.last.labelProps.label_final
         // connect the final of first statement to the init of next statement
-        val label_flow: List[(Label, Label)] = if (stmts.length > 1) stmts.sliding(2).toList.map(group => group(0).labelProps.label_final.map(f => (f, group(1).labelProps.label_init))).flatten else List[(Label, Label)]()
-        this.labelProps = LabelProps(label_init, label_final, label_flow)
+        var label_flow: List[(Label, Label)] = if (stmts.length > 1) stmts.sliding(2).toList.map(group => group(0).labelProps.label_final.map(f => (f, group(1).labelProps.label_init))).flatten else List[(Label, Label)]()
+        this.dotLines = this.dotLines ++ label_flow.map(makeDotLines) ++stmts.map(_.dotLines).flatten
+        // TODO: check the order once everything alright
+        this.labelProps = LabelProps(label_init, label_final, label_flow ++ stmts.map(_.labelProps.label_flow).flatten)
+
       }
     }
   }
@@ -156,6 +170,7 @@ class ControlFlowBuilder() {
   var flow: List[(AbstractSyntaxTree.Label, AbstractSyntaxTree.Label)] = List()
   var prevStatement: Statement = StartStatement()
   var idMap: Map[Long, String] = Map((-1.asInstanceOf[Long] -> "START"))
+  var dotNotationLines: ListBuffer[String] = ListBuffer[String]();
 
   def generateCodeLabels(stmt: Statement): Unit = {
     stmt match {
@@ -177,26 +192,28 @@ class ControlFlowBuilder() {
         // just recurse
         blockStmt.stmts.foreach(s => this.generateCodeLabels(s))
       }
-      case emptyStmt: EmptyStmt => this.idMap = this.idMap + (emptyStmt.id -> "PASS - empty stmt")
+      case emptyStmt: EmptyStmt => this.idMap = this.idMap + (emptyStmt.id -> s"${emptyStmt.id}: Empty Stmt")
       case _ =>
     }
   }
-
 
   def toDotNotion = {
     println("\n\n############ DOT FILE ###################\n\n")
     println("digraph G{")
     println("node [shape = rec, height=.3];")
     this.idMap.foreach(x => println(s""" "${x._1}" [label="${x._2}"] """))
-    flow.distinct.foreach(f => println(s"""  "${f._1}" -> "${f._2}""""))
+    this.dotNotationLines.foreach(println)
     println("}")
     println("\n#######################################\n")
   }
 
   def attachToFlow(stmt: Statement, prev_stmt: Statement): Unit = {
     // given a statement and parent, attaches all of the statements flow and parents final to the statement init
-    this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, stmt.labelProps.label_init)) ++ stmt.labelProps.label_flow
+//    this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, stmt.labelProps.label_init)) ++ stmt.labelProps.label_flow
+    this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${stmt.labelProps.label_init}") ++ stmt.labelProps.label_flow.map(p => s"${p._1} -> ${p._2}")
   }
+
+  def makeDotLine(s: (Long, Long)): String = s"${s._1} -> ${s._2}"
 
   def build(stmt: Statement, prev_stmt: Statement): Unit = {
     stmt match {
@@ -204,26 +221,25 @@ class ControlFlowBuilder() {
         (List(prev_stmt) ++ script.stmts).sliding(2).toList.map(group => this.build(group(1), group(0)))
       }
       case varDeclStmt: VarDeclStmt => {
-        this.attachToFlow(varDeclStmt, prev_stmt)
+        this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, varDeclStmt.labelProps.label_init))
       }
       case exprStmt: ExprStmt => {
-        this.attachToFlow(exprStmt, prev_stmt)
+        this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, exprStmt.labelProps.label_init))
       }
       case ifStmt: IfStmt => {
         // attach the then and else blocks flow to the flow member variable
-        this.flow = this.flow ++ ifStmt.labelProps.label_flow
+//        this.flow = this.flow ++ ifStmt.labelProps.label_flow
+        this.dotNotationLines = this.dotNotationLines ++ ifStmt.dotLines
       }
       case whileStmt: WhileStmt => {
         // first build the body
-        this.attachToFlow(whileStmt, prev_stmt)
-        this.build(whileStmt.body, whileStmt)
+        this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${whileStmt.labelProps.label_init}")
+        this.dotNotationLines = this.dotNotationLines ++ whileStmt.dotLines
       }
       case blockStmt: BlockStmt => {
         // attach the prev block to the init of the block
-        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
-        (List(prev_stmt) ++ blockStmt.stmts).sliding(2).foreach {
-          case group => this.build(group(1), group(0))
-        }
+//        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
+        this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${blockStmt.stmts(0).labelProps.label_init}") ++ blockStmt.dotLines
       }
       case emptyStmt: EmptyStmt =>
     }
