@@ -102,7 +102,6 @@ sealed abstract class Statement extends AbstractSyntaxTree {
 //      case VarDeclListStmt(decls) => { decls.foreach(s => s.generateLabelProps) }
       case VarDeclStmt(_, expr) => {
         this.labelProps = LabelProps(this.id, List(this.id), List())
-        println(this.labelProps)
       }
       case EmptyStmt() => { this.labelProps = LabelProps(this.id, List(this.id), List())}
       case ExprStmt(expr) => {
@@ -120,7 +119,6 @@ sealed abstract class Statement extends AbstractSyntaxTree {
         // for while init and final are gonna be same
         val label_flow: List[(Label, Label)] = body.labelProps.label_flow ++ List((this.id, body.labelProps.label_init)) ++ body.labelProps.label_final.map((_, this.id))
         this.labelProps = LabelProps(this.id, List(this.id), label_flow)
-        println(this.labelProps)
       }
       case BlockStmt(stmts) => {
         // for each stmt generate the label props
@@ -132,7 +130,6 @@ sealed abstract class Statement extends AbstractSyntaxTree {
         // connect the final of first statement to the init of next statement
         val label_flow: List[(Label, Label)] = if (stmts.length > 1) stmts.sliding(2).toList.map(group => group(0).labelProps.label_final.map(f => (f, group(1).labelProps.label_init))).flatten else List[(Label, Label)]()
         this.labelProps = LabelProps(label_init, label_final, label_flow)
-        println(this.labelProps)
       }
     }
   }
@@ -147,31 +144,38 @@ sealed abstract class Statement extends AbstractSyntaxTree {
     stmt.generateLabelProps
     val cfBuilder = new ControlFlowBuilder()
     cfBuilder.build(stmt)
+    cfBuilder.generateCodeLabels(stmt)
     cfBuilder.toDotNotion
   }
 }
 
 // Given statements returns a graph of labels
 class ControlFlowBuilder() {
-
-
   var flow: List[(AbstractSyntaxTree.Label, AbstractSyntaxTree.Label)] = List()
   var prevStatement: Option[Statement] = None
   var idMap: Map[Long, String] = Map((-1.asInstanceOf[Long] -> "START"))
 
-  def buildFlow(stmt: Statement): Unit = {
-    prevStatement match {
-      case Some(prev: Statement) => this.flow = this.flow ++ prev.labelProps.label_final.map(p => (p, stmt.labelProps.label_init))
-      case None => this.flow = this.flow :+ (-1, stmt.labelProps.label_init)
-    }
-    prevStatement = Some(stmt)
-
-    // cache the to be displayed code for this statement
+  def generateCodeLabels(stmt: Statement): Unit = {
     stmt match {
-      case Script(stmts) =>
+      case script: Script => script.stmts.foreach(s => this.generateCodeLabels(s))
       case varDeclStmt: VarDeclStmt => this.idMap = this.idMap + (varDeclStmt.id -> varDeclStmt.toString)
-      case whileStmt: WhileStmt => this.idMap = this.idMap + (whileStmt.id -> whileStmt.cond.toString)
-      case exprStmt: ExprStmt => this.idMap = this.idMap + (exprStmt.id -> exprStmt.expr.toString)
+      case exprStmt: ExprStmt => this.idMap = this.idMap + (exprStmt.id -> exprStmt.toString)
+      case ifStmt: IfStmt => {
+        this.idMap = this.idMap + (ifStmt.id -> ifStmt.cond.toString)
+        // recurse for then and else blocks
+        this.generateCodeLabels(ifStmt.thenPart)
+        this.generateCodeLabels(ifStmt.elsePart)
+      }
+      case whileStmt: WhileStmt => {
+        this.idMap = this.idMap + (whileStmt.id -> whileStmt.cond.toString)
+        // recurse for the body
+        this.generateCodeLabels(whileStmt.body)
+      }
+      case blockStmt: BlockStmt => {
+        // just recurse
+        blockStmt.stmts.foreach(s => this.generateCodeLabels(s))
+      }
+      case _ =>
     }
   }
 
@@ -180,8 +184,15 @@ class ControlFlowBuilder() {
 
     println(this.idMap)
     println("node [shape = record, height=.3];")
-//    flow.foreach(f => print(s"""node${f._1}[label= "${this.idMap.getOrElse(f._1, f._1)}"] -> node${f._2}\n"""))
-    flow.foreach(f => println(s""""${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
+    flow.distinct.foreach(f => println(s""""${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
+  }
+
+  def buildFlow(stmt: Statement): Unit = {
+    prevStatement match {
+      case Some(prev: Statement) => this.flow = this.flow ++ prev.labelProps.label_final.map(p => (p, stmt.labelProps.label_init))
+      case None => this.flow = this.flow :+ (-1, stmt.labelProps.label_init)
+    }
+    prevStatement = Some(stmt)
   }
 
   def build(ostmt: Statement) { // original statement
@@ -192,7 +203,9 @@ class ControlFlowBuilder() {
       case varDeclStmt: VarDeclStmt => {
         this.buildFlow(varDeclStmt)
       }
-      case exprStmt: ExprStmt => this.buildFlow(exprStmt)
+      case exprStmt: ExprStmt => {
+        this.buildFlow(exprStmt)
+      }
       case ifStmt: IfStmt => {
         this.buildFlow(ifStmt)
         this.flow = this.flow ++ ifStmt.labelProps.label_flow
@@ -200,15 +213,9 @@ class ControlFlowBuilder() {
       case whileStmt: WhileStmt => {
         this.buildFlow(whileStmt)
         this.flow = this.flow ++ whileStmt.labelProps.label_flow
-        this.build(whileStmt.body)
-      }
-      case blockStmt: BlockStmt => {
-        blockStmt.stmts.foreach(s => this.buildFlow(s))
-        this.flow = this.flow ++ blockStmt.labelProps.label_flow
       }
       case emptyStmt: EmptyStmt => this.buildFlow(emptyStmt)
     }
-
   }
 }
 
