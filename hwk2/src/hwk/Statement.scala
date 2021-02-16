@@ -88,6 +88,8 @@ sealed abstract class Statement extends AbstractSyntaxTree {
     }) + c
   )
 
+  // Raghuveer changes
+
   case class LabelProps(label_init: Label, label_final: List[Label], label_flow: List[(Label, Label)]) {
     def reverse_flow = this.label_flow.reverse
   }
@@ -143,7 +145,7 @@ sealed abstract class Statement extends AbstractSyntaxTree {
 
     stmt.generateLabelProps
     val cfBuilder = new ControlFlowBuilder()
-    cfBuilder.build(stmt)
+    cfBuilder.build(stmt, StartStatement())
     cfBuilder.generateCodeLabels(stmt)
     cfBuilder.toDotNotion
   }
@@ -152,7 +154,7 @@ sealed abstract class Statement extends AbstractSyntaxTree {
 // Given statements returns a graph of labels
 class ControlFlowBuilder() {
   var flow: List[(AbstractSyntaxTree.Label, AbstractSyntaxTree.Label)] = List()
-  var prevStatement: Option[Statement] = None
+  var prevStatement: Statement = StartStatement()
   var idMap: Map[Long, String] = Map((-1.asInstanceOf[Long] -> "START"))
 
   def generateCodeLabels(stmt: Statement): Unit = {
@@ -184,49 +186,57 @@ class ControlFlowBuilder() {
   def toDotNotion = {
     println("\n\n############ DOT FILE ###################\n\n")
     println("digraph G{")
-    println("node [shape = record, height=.3];")
-    flow.distinct.foreach(f => println(s""""${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
+    println("  node [shape = record, height=.3];")
+    flow.distinct.foreach(f => println(s"""  "${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
     println("}")
     println("\n#######################################\n")
   }
 
-  def buildFlow(stmt: Statement): Unit = {
-    prevStatement match {
-      case Some(prev: Statement) => this.flow = this.flow ++ prev.labelProps.label_final.map(p => (p, stmt.labelProps.label_init))
-      case None => this.flow = this.flow :+ (-1, stmt.labelProps.label_init)
-    }
-    prevStatement = Some(stmt)
+  def attachToFlow(stmt: Statement, prev_stmt: Statement): Unit = {
+    // given a statement and parent, attaches all of the statements flow and parents final to the statement init
+    this.flow = this.flow ++ stmt.labelProps.label_flow ++ prev_stmt.labelProps.label_final.map(p => (p, stmt.labelProps.label_init))
   }
 
-  def build(ostmt: Statement) { // original statement
-    ostmt match {
-      case Script(stmts) => {
-        stmts.foreach(s => this.build(s))
+  def build(stmt: Statement, prev_stmt: Statement): Unit = {
+    stmt match {
+      case script: Script => {
+        (List(prev_stmt) ++ script.stmts).sliding(2).toList.map(group => this.build(group(1), group(0)))
       }
       case varDeclStmt: VarDeclStmt => {
-        this.buildFlow(varDeclStmt)
+        this.attachToFlow(varDeclStmt, prev_stmt)
       }
       case exprStmt: ExprStmt => {
-        this.buildFlow(exprStmt)
+        this.attachToFlow(exprStmt, prev_stmt)
       }
       case ifStmt: IfStmt => {
-        this.buildFlow(ifStmt)
-        this.flow = this.flow ++ ifStmt.labelProps.label_flow
+        // first build for the child
+        this.build(ifStmt.thenPart, ifStmt)
+        this.build(ifStmt.elsePart, ifStmt)
+        this.attachToFlow(ifStmt, prev_stmt)
       }
       case whileStmt: WhileStmt => {
-        this.buildFlow(whileStmt)
-        this.flow = this.flow ++ whileStmt.labelProps.label_flow
-        this.build(whileStmt.body)
+        // first build the body
+        this.build(whileStmt.body, whileStmt)
+        this.attachToFlow(whileStmt, prev_stmt)
       }
       case blockStmt: BlockStmt => {
-        blockStmt.stmts.foreach(s => this.build(s))
+        // first build the children
+          (List(prev_stmt) ++ blockStmt.stmts).sliding(2).toList.foreach {
+                case (group) => {
+                  this.build(group(1), group(0))
+                }
+        }
       }
-      case emptyStmt: EmptyStmt => this.buildFlow(emptyStmt)
+      case emptyStmt: EmptyStmt =>
     }
+
   }
 }
 
 
+case class StartStatement() extends Statement {
+  labelProps = LabelProps(-1, List(-1), List())  // -1 is later referred as START code label
+};
 case class Script(stmts : List[Statement]) extends  Statement  // s1; s2
 case class BlockStmt(stmts : List[Statement]) extends Statement  // { s1; s2; }
 case class VarDeclListStmt(decls : List[Statement]) extends Statement  // var a=1, b=2
