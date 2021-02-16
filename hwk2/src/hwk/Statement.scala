@@ -186,8 +186,9 @@ class ControlFlowBuilder() {
   def toDotNotion = {
     println("\n\n############ DOT FILE ###################\n\n")
     println("digraph G{")
-    println("  node [shape = record, height=.3];")
-    flow.distinct.foreach(f => println(s"""  "${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
+    println("node [shape = rec, height=.3];")
+    this.idMap.foreach(x => println(s""" "${x._1}" [label="${x._2}"] """))
+    flow.distinct.foreach(f => println(s"""  "${f._1}" -> "${f._2}""""))
     println("}")
     println("\n#######################################\n")
   }
@@ -209,10 +210,8 @@ class ControlFlowBuilder() {
         this.attachToFlow(exprStmt, prev_stmt)
       }
       case ifStmt: IfStmt => {
-        // first build for the child
-        this.build(ifStmt.thenPart, ifStmt)
-        this.build(ifStmt.elsePart, ifStmt)
-        this.attachToFlow(ifStmt, prev_stmt)
+        // attach the then and else blocks flow to the flow member variable
+        this.flow = this.flow ++ ifStmt.labelProps.label_flow
       }
       case whileStmt: WhileStmt => {
         // first build the body
@@ -220,12 +219,11 @@ class ControlFlowBuilder() {
         this.attachToFlow(whileStmt, prev_stmt)
       }
       case blockStmt: BlockStmt => {
-        // first build the children
-          (List(prev_stmt) ++ blockStmt.stmts).sliding(2).toList.foreach {
-                case (group) => {
-                  this.build(group(1), group(0))
-                }
+        (List(prev_stmt) ++ blockStmt.stmts).sliding(2).foreach {
+          case group => this.build(group(1), group(0))
         }
+        // attach the prev block to the init of the block
+        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
       }
       case emptyStmt: EmptyStmt =>
     }
