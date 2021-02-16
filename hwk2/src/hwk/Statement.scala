@@ -175,16 +175,19 @@ class ControlFlowBuilder() {
         // just recurse
         blockStmt.stmts.foreach(s => this.generateCodeLabels(s))
       }
+      case emptyStmt: EmptyStmt => this.idMap = this.idMap + (emptyStmt.id -> "PASS - empty stmt")
       case _ =>
     }
   }
 
 
   def toDotNotion = {
-
-    println(this.idMap)
+    println("\n\n############ DOT FILE ###################\n\n")
+    println("digraph G{")
     println("node [shape = record, height=.3];")
     flow.distinct.foreach(f => println(s""""${this.idMap.getOrElse(f._1, f._1)}" -> "${this.idMap.getOrElse(f._2, f._2)}""""))
+    println("}")
+    println("\n#######################################\n")
   }
 
   def buildFlow(stmt: Statement): Unit = {
@@ -213,6 +216,10 @@ class ControlFlowBuilder() {
       case whileStmt: WhileStmt => {
         this.buildFlow(whileStmt)
         this.flow = this.flow ++ whileStmt.labelProps.label_flow
+        this.build(whileStmt.body)
+      }
+      case blockStmt: BlockStmt => {
+        blockStmt.stmts.foreach(s => this.build(s))
       }
       case emptyStmt: EmptyStmt => this.buildFlow(emptyStmt)
     }
