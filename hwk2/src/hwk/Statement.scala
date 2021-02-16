@@ -195,7 +195,7 @@ class ControlFlowBuilder() {
 
   def attachToFlow(stmt: Statement, prev_stmt: Statement): Unit = {
     // given a statement and parent, attaches all of the statements flow and parents final to the statement init
-    this.flow = this.flow ++ stmt.labelProps.label_flow ++ prev_stmt.labelProps.label_final.map(p => (p, stmt.labelProps.label_init))
+    this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, stmt.labelProps.label_init)) ++ stmt.labelProps.label_flow
   }
 
   def build(stmt: Statement, prev_stmt: Statement): Unit = {
@@ -215,15 +215,15 @@ class ControlFlowBuilder() {
       }
       case whileStmt: WhileStmt => {
         // first build the body
-        this.build(whileStmt.body, whileStmt)
         this.attachToFlow(whileStmt, prev_stmt)
+        this.build(whileStmt.body, whileStmt)
       }
       case blockStmt: BlockStmt => {
+        // attach the prev block to the init of the block
+        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
         (List(prev_stmt) ++ blockStmt.stmts).sliding(2).foreach {
           case group => this.build(group(1), group(0))
         }
-        // attach the prev block to the init of the block
-        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
       }
       case emptyStmt: EmptyStmt =>
     }
