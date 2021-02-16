@@ -103,8 +103,6 @@ sealed abstract class Statement extends AbstractSyntaxTree {
   def generateLabelProps {
     this match {
       case Script(stmts) => { stmts.foreach(s => s.generateLabelProps) }
-//      case BlockStmt(stmts) => { stmts.foreach(s => s.generateLabelProps) }
-//      case VarDeclListStmt(decls) => { decls.foreach(s => s.generateLabelProps) }
       case VarDeclStmt(_, expr) => {
         this.labelProps = LabelProps(this.id, List(this.id), List())
       }
@@ -134,17 +132,16 @@ sealed abstract class Statement extends AbstractSyntaxTree {
         this.dotLines = this.dotLines :+ "}"
       }
       case BlockStmt(stmts) => {
-        // for each stmt generate the label props
         stmts.foreach(s => s.generateLabelProps)
-        // what if there is only one element
         val label_init = stmts.head.labelProps.label_init
         // final is same as final statement of the block
         val label_final = stmts.last.labelProps.label_final
-        // connect the final of first statement to the init of next statement
-        var label_flow: List[(Label, Label)] = if (stmts.length > 1) stmts.sliding(2).toList.map(group => group(0).labelProps.label_final.map(f => (f, group(1).labelProps.label_init))).flatten else List[(Label, Label)]()
-        this.dotLines = this.dotLines ++ label_flow.map(makeDotLines) ++stmts.map(_.dotLines).flatten
+        // generate links with statements, 1->2->3..
+        var inner_flow: List[(Label, Label)] = if (stmts.length > 1) stmts.sliding(2).toList.map(group => group(0).labelProps.label_final.map(f => (f, group(1).labelProps.label_init))).flatten else List[(Label, Label)]()
+        this.dotLines = this.dotLines ++ inner_flow.map(makeDotLines) ++ stmts.map(_.dotLines).flatten
         // TODO: check the order once everything alright
-        this.labelProps = LabelProps(label_init, label_final, label_flow ++ stmts.map(_.labelProps.label_flow).flatten)
+        val label_flow = inner_flow ++ stmts.map(_.labelProps.label_flow).flatten
+        this.labelProps = LabelProps(label_init, label_final, label_flow)
 
       }
     }
@@ -152,11 +149,6 @@ sealed abstract class Statement extends AbstractSyntaxTree {
   
 
   def buildGraph(stmt: Statement): Unit =  {
-
-    // Given a statement ( which is recursive statements, build control flow out of this )
-    // Each program point in the program is assigned a label
-    // Eventually we will construct flow(...) of the whole java script and generate dot file out of it
-
     stmt.generateLabelProps
     val cfBuilder = new ControlFlowBuilder()
     cfBuilder.build(stmt, StartStatement())
@@ -227,18 +219,13 @@ class ControlFlowBuilder() {
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, exprStmt.labelProps.label_init))
       }
       case ifStmt: IfStmt => {
-        // attach the then and else blocks flow to the flow member variable
-//        this.flow = this.flow ++ ifStmt.labelProps.label_flow
         this.dotNotationLines = this.dotNotationLines ++ ifStmt.dotLines
       }
       case whileStmt: WhileStmt => {
-        // first build the body
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${whileStmt.labelProps.label_init}")
         this.dotNotationLines = this.dotNotationLines ++ whileStmt.dotLines
       }
       case blockStmt: BlockStmt => {
-        // attach the prev block to the init of the block
-//        prev_stmt.labelProps.label_final.foreach(p => this.flow = this.flow :+ (p, blockStmt.stmts(0).labelProps.label_init))
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${blockStmt.stmts(0).labelProps.label_init}") ++ blockStmt.dotLines
       }
       case emptyStmt: EmptyStmt =>
@@ -248,7 +235,7 @@ class ControlFlowBuilder() {
 }
 
 
-case class StartStatement() extends Statement {
+case class StartStatement() extends Statement {  // Represents start block, just a placebo
   labelProps = LabelProps(-1, List(-1), List())  // -1 is later referred as START code label
 };
 case class Script(stmts : List[Statement]) extends  Statement  // s1; s2
