@@ -46,3 +46,5 @@ out/production/hwk2_solution/hwk/VarDeclStmt$.class
 out/production/hwk2_solution/hwk/VarDeclStmt.class
 out/production/hwk2_solution/hwk/WhileStmt$.class
 out/production/hwk2_solution/hwk/WhileStmt.class
+*.class
+*.log
