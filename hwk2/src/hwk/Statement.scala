@@ -104,6 +104,31 @@ sealed abstract class Statement extends AbstractSyntaxTree {
 
   var labelProps: LabelProps = _
   var dotLines: List[String] = List()  // dot lines notation for the given statement
+//  var rdEntry = Map[String, Long]();
+//  var rdExit = Map[String, Long]();
+//
+//  def generateRdProps: Unit = {
+//    this match {
+//      case Script(stmts) => { stmts.foreach(s => s.generateRdProps)}
+//      case VarDeclStmt(name, _) => {
+//        this.rdExit = this.rdExit.updated(name.str, this.id)
+//      }
+//      case EmptyStmt() => {}
+//      case ExprStmt(AssignExpr(_, LVarRef(n), _)) => {
+//        this.rdExit = this.rdExit.updated(n, this.id);
+//      }
+//      case IfStmt(_, thenPart, elsePart) => {
+//        thenPart.generateRdProps
+//        elsePart.generateRdProps
+//    }
+//      case WhileStmt(_, body) => {
+//        body.generateRdProps
+//      }
+//      case BlockStmt(stmts) => {
+//        stmts.foreach(s => s.generateRdProps)
+//      }
+//    }
+//  }
 
 
   def generateLabelProps {
@@ -161,11 +186,11 @@ sealed abstract class Statement extends AbstractSyntaxTree {
   }
   
 
-  def buildGraph(stmt: Statement): Unit =  {
-    stmt.generateLabelProps
+  def buildGraph(): Unit =  {
+    this.generateLabelProps
     val cfBuilder = new ControlFlowBuilder()
-    cfBuilder.build(stmt, StartStatement())
-    cfBuilder.generateCodeLabels(stmt)
+    cfBuilder.build(this, StartStatement())
+    cfBuilder.generateCodeLabels(this)
     cfBuilder.toDotNotion
   }
 }
@@ -175,21 +200,30 @@ class ControlFlowBuilder() {
   var flow: List[(AbstractSyntaxTree.Label, AbstractSyntaxTree.Label)] = List()
   var prevStatement: Statement = StartStatement()
   var idMap: Map[Long, String] = Map((-1.asInstanceOf[Long] -> "START"))
+  var stmtIdMap: Map[Long, Statement] = Map((-1.asInstanceOf[Long] -> StartStatement()));
   var dotNotationLines: ListBuffer[String] = ListBuffer[String]()
 
   def generateCodeLabels(stmt: Statement): Unit = {  // generates display code labels and maps with the assigned id
     stmt match {
       case script: Script => script.stmts.foreach(s => this.generateCodeLabels(s))
-      case varDeclStmt: VarDeclStmt => this.idMap = this.idMap + (varDeclStmt.id -> varDeclStmt.toString)
-      case exprStmt: ExprStmt => this.idMap = this.idMap + (exprStmt.id -> exprStmt.toString)
+      case varDeclStmt: VarDeclStmt => {
+        this.idMap = this.idMap + (varDeclStmt.id -> varDeclStmt.toString)
+        this.stmtIdMap = this.stmtIdMap + (varDeclStmt.id -> varDeclStmt)
+      }
+      case exprStmt: ExprStmt => {
+        this.idMap = this.idMap + (exprStmt.id -> exprStmt.toString)
+        this.stmtIdMap = this.stmtIdMap + (exprStmt.id -> exprStmt)
+      }
       case ifStmt: IfStmt => {
         this.idMap = this.idMap + (ifStmt.id -> ifStmt.cond.toString)
+        this.stmtIdMap = this.stmtIdMap + (ifStmt.id -> ifStmt)
         // recurse for then and else blocks
         this.generateCodeLabels(ifStmt.thenPart)
         this.generateCodeLabels(ifStmt.elsePart)
       }
       case whileStmt: WhileStmt => {
         this.idMap = this.idMap + (whileStmt.id -> whileStmt.cond.toString)
+        this.stmtIdMap = this.stmtIdMap + (whileStmt.id -> whileStmt)
         // recurse for the body
         this.generateCodeLabels(whileStmt.body)
       }
@@ -218,6 +252,39 @@ class ControlFlowBuilder() {
   }
 
   def makeDotLine(s: (Long, Long)): String = s"${s._1} -> ${s._2}"
+
+  def build_program_flow(stmt: Statement, prev_stmt: Statement): Unit = {
+    stmt match {
+      case script: Script => {
+        // connect the consecutive statements i.e id's
+        (List(prev_stmt) ++ script.stmts).sliding(2).toList.map(group => this.build_program_flow(group(1), group(0)))
+      }
+      case varDeclStmt: VarDeclStmt => {
+        // connect with given prev statement
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, varDeclStmt.labelProps.label_init))
+      }
+      case exprStmt: ExprStmt => {
+        // connect with given prev statement
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, exprStmt.labelProps.label_init))
+      }
+      case ifStmt: IfStmt => {
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, ifStmt.labelProps.label_init))
+        this.build_program_flow(ifStmt.thenPart, ifStmt)
+        this.build_program_flow(ifStmt.elsePart, ifStmt)
+      }
+      case whileStmt: WhileStmt => {
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, whileStmt.labelProps.label_init))
+        this.build_program_flow(whileStmt.body, whileStmt)
+        this.flow = this.flow ++ whileStmt.body.labelProps.label_final.map(p=>(p, whileStmt.labelProps.label_init))
+      }
+      case blockStmt: BlockStmt => {
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, blockStmt.labelProps.label_init))
+        this.flow = this.flow ++ blockStmt.labelProps.label_flow
+      }
+      case emptyStmt: EmptyStmt =>
+    }
+
+  }
 
   def build(stmt: Statement, prev_stmt: Statement): Unit = {
     stmt match {

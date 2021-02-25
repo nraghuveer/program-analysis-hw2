@@ -4,4 +4,3 @@
 		ret = ret * n;
 		ret = ret - 1;
 	}
-	console.log(ret);
