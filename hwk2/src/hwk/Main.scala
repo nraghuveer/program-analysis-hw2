@@ -15,9 +15,9 @@ object Main {
     ast.buildGraph
 
     val analysis = Analysis(ast)
-    println(analysis.variables)
-    println(analysis.flow)
-    println(analysis.deps)
+    println(analysis.succ)
+    println(analysis.pred)
+//    println(analysis.worklist_queue)
 
   }
 }

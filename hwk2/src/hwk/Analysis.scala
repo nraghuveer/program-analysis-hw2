@@ -1,5 +1,6 @@
 package hwk
 
+import scala.collection.mutable
 import scala.collection.mutable.Queue;
 
 case class Analysis(statement: Statement) extends ControlFlowBuilder {
@@ -14,12 +15,20 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
   val rdInitEntry = variables.map(t => (t, -1).asInstanceOf[Pair]).toList
   this.generateCodeLabels(statement)
   this.build_program_flow(statement, StartStatement());
-  var deps: Map[Long, Set[Long]] = this.flow.map(_._2).map(p => (p ->
+  var succ: Map[Long, Set[Long]] = this.flow.map(_._1).map(p => (p ->
+    this.flow.filter(_._1 == p).map(_._2).map(_.asInstanceOf[Long]).toSet
+    )).toMap
+  var pred: Map[Long, Set[Long]] = this.flow.map(_._2).map(p => (p ->
     this.flow.filter(_._2 == p).map(_._1).map(_.asInstanceOf[Long]).toSet
     )).toMap
 
+  // remove -1 from the pred and succ
+  succ = succ.filter(_._1 != -1)
+  pred = pred.filter(!_._2.contains(-1))
 
-//  var worklist_queue = Queue[Long]((this.flow.map(_._1).distinct ++ this.flow.map(_._2).distinct).toSeq.sorted)
+
+  var worklist_queue = new mutable.Queue[Long]();
+  this.worklist_queue = worklist_queue ++ this.succ.map(_._1).map(_.asInstanceOf[Long]).toList
 
   private def vars(stmt: Statement): Set[String] = {
     stmt match {
