@@ -1,6 +1,9 @@
-	var ret = 1;
-	while (n > 0)
-	{
-		ret = ret * n;
-		ret = ret - 1;
-	}
+
+
+x = 5; // 2
+y = 1;  // 3
+while (x > 1) // 4
+    {
+    y = x * y;  // 6
+    x = x -1; // 7
+    }

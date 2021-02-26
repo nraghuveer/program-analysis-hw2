@@ -9,15 +9,15 @@ object Main {
     // val ast = GenerateAST(new File("test/simple.js"))
     val ast = GenerateAST(new File("hwk2/test/simple.js"))
     ast.prep
+    ast.generateLabelProps
     
     print(ast)
-    
-    ast.buildGraph
 
     val analysis = Analysis(ast)
-    println(analysis.succ)
-    println(analysis.pred)
-//    println(analysis.worklist_queue)
+    analysis.build(ast, StartStatement())
+    analysis.generateCodeLabels(ast)
+    analysis.worklist
+    analysis.toDotNotion
 
   }
 }

@@ -236,11 +236,13 @@ class ControlFlowBuilder() {
     }
   }
 
+  def getXLabel(id: Long): String = { "" }
+
   def toDotNotion = {
     println("\n\n############ DOT FILE ###################\n\n")
     println("digraph G{")
-    println("node [shape = rec, height=.3];")
-    this.idMap.foreach(x => println(s""" "${x._1}" [label="${x._2}"] """))
+//    println("node [shape = rec, height=.3, nodesep=\"1\", ranksep=\"2\"];")
+    this.idMap.foreach(x => println(s""" ${x._1} [label="${x._2}", xlabel="${getXLabel(x._1)}"] """))
     this.dotNotationLines.foreach(println)
     println("}")
     println("\n#######################################\n")
