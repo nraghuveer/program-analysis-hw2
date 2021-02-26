@@ -3,23 +3,23 @@ package hwk
 import scala.collection.mutable.Queue;
 
 case class Analysis(statement: Statement) extends ControlFlowBuilder {
-  // Key -> statement id
-  // value -> rd sets for that node or statement
-
   type Pair = (String, Long)
 
   var rdEntry = Map[Long, List[Pair]]();
   var rdExit = Map[Long, List[Pair]]();
-//  var nodeDependencies: Map[Long, List[Long]] =
-  // sort all the keys in increasing order and add to the work list queue
-  var work_list: Queue[Long] = Queue(this.stmtIdMap.keys.toSeq.sorted: _*)
 
   // all variables assigned in this program
   val variables: Set[String] = vars(statement);
   val rdInitExit = variables.map(t => (t, -1).asInstanceOf[Pair]).toList
   val rdInitEntry = variables.map(t => (t, -1).asInstanceOf[Pair]).toList
   this.generateCodeLabels(statement)
-  this.build_program_flow(statement, StartStatement())
+  this.build_program_flow(statement, StartStatement());
+  var deps: Map[Long, Set[Long]] = this.flow.map(_._2).map(p => (p ->
+    this.flow.filter(_._2 == p).map(_._1).map(_.asInstanceOf[Long]).toSet
+    )).toMap
+
+
+//  var worklist_queue = Queue[Long]((this.flow.map(_._1).distinct ++ this.flow.map(_._2).distinct).toSeq.sorted)
 
   private def vars(stmt: Statement): Set[String] = {
     stmt match {
@@ -39,12 +39,12 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
 
   private def vars(stmts: List[Statement]): Set[String] = stmts.map(s => vars(s)).reduce((a, b)=> a.union(b))
 
-  def worklist: Unit = {
-    while(work_list.nonEmpty) {
-      var cur = work_list.dequeue();
-
-    }
-  }
+//  def worklist: Unit = {
+//    while(work_list.nonEmpty) {
+//      var cur = work_list.dequeue();
+//
+//    }
+//  }
 
 
 }

@@ -16,7 +16,8 @@ object Main {
 
     val analysis = Analysis(ast)
     println(analysis.variables)
-    print(analysis.flow)
+    println(analysis.flow)
+    println(analysis.deps)
 
   }
 }
