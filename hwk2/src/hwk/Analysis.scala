@@ -25,9 +25,9 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
   val variables: Set[String] = vars(statement);
 
   type Pair = (String, Long)
-
+  this.build(statement, StartStatement())
   this.generateCodeLabels(statement)
-  this.build_program_flow(statement, StartStatement());
+//  this.build_program_flow(statement, StartStatement());
 
   var succ: Map[Long, Set[Long]] = this.flow.map(_._1).map(p => (p ->
     this.flow.filter(_._1 == p).map(_._2).map(_.asInstanceOf[Long]).toSet

@@ -7,15 +7,13 @@ import java.io.File
 object Main {
   def main(args: Array[String]) { 
     // val ast = GenerateAST(new File("test/simple.js"))
-    val ast = GenerateAST(new File("hwk2/test/simple.js"))
+    val ast = GenerateAST(new File("hwk2/test/test3.js"))
     ast.prep
     ast.generateLabelProps
     
     print(ast)
 
     val analysis = Analysis(ast)
-    analysis.build(ast, StartStatement())
-    analysis.generateCodeLabels(ast)
     analysis.worklist
     analysis.toDotNotion
 

@@ -254,39 +254,39 @@ class ControlFlowBuilder() {
   }
 
   def makeDotLine(s: (Long, Long)): String = s"${s._1} -> ${s._2}"
-
-  def build_program_flow(stmt: Statement, prev_stmt: Statement): Unit = {
-    stmt match {
-      case script: Script => {
-        // connect the consecutive statements i.e id's
-        (List(prev_stmt) ++ script.stmts).sliding(2).toList.map(group => this.build_program_flow(group(1), group(0)))
-      }
-      case varDeclStmt: VarDeclStmt => {
-        // connect with given prev statement
-        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, varDeclStmt.labelProps.label_init))
-      }
-      case exprStmt: ExprStmt => {
-        // connect with given prev statement
-        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, exprStmt.labelProps.label_init))
-      }
-      case ifStmt: IfStmt => {
-        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, ifStmt.labelProps.label_init))
-        this.build_program_flow(ifStmt.thenPart, ifStmt)
-        this.build_program_flow(ifStmt.elsePart, ifStmt)
-      }
-      case whileStmt: WhileStmt => {
-        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, whileStmt.labelProps.label_init))
-        this.build_program_flow(whileStmt.body, whileStmt)
-        this.flow = this.flow ++ whileStmt.body.labelProps.label_final.map(p=>(p, whileStmt.labelProps.label_init))
-      }
-      case blockStmt: BlockStmt => {
-        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, blockStmt.labelProps.label_init))
-        this.flow = this.flow ++ blockStmt.labelProps.label_flow
-      }
-      case emptyStmt: EmptyStmt =>
-    }
-
-  }
+//
+//  def build_program_flow(stmt: Statement, prev_stmt: Statement): Unit = {
+//    stmt match {
+//      case script: Script => {
+//        // connect the consecutive statements i.e id's
+//        (List(prev_stmt) ++ script.stmts).sliding(2).toList.map(group => this.build_program_flow(group(1), group(0)))
+//      }
+//      case varDeclStmt: VarDeclStmt => {
+//        // connect with given prev statement
+//        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, varDeclStmt.labelProps.label_init))
+//      }
+//      case exprStmt: ExprStmt => {
+//        // connect with given prev statement
+//        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, exprStmt.labelProps.label_init))
+//      }
+//      case ifStmt: IfStmt => {
+//        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, ifStmt.labelProps.label_init))
+//        this.build_program_flow(ifStmt.thenPart, ifStmt)
+//        this.build_program_flow(ifStmt.elsePart, ifStmt)
+//      }
+//      case whileStmt: WhileStmt => {
+//        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, whileStmt.labelProps.label_init))
+//        this.build_program_flow(whileStmt.body, whileStmt)
+//        this.flow = this.flow ++ whileStmt.body.labelProps.label_final.map(p=>(p, whileStmt.labelProps.label_init))
+//      }
+//      case blockStmt: BlockStmt => {
+//        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, blockStmt.labelProps.label_init))
+//        this.flow = this.flow ++ blockStmt.labelProps.label_flow
+//      }
+//      case emptyStmt: EmptyStmt =>
+//    }
+//
+//  }
 
   def build(stmt: Statement, prev_stmt: Statement): Unit = {
     stmt match {
@@ -297,20 +297,36 @@ class ControlFlowBuilder() {
       case varDeclStmt: VarDeclStmt => {
         // connect with given prev statement
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, varDeclStmt.labelProps.label_init))
+
+        // construct flow
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, varDeclStmt.labelProps.label_init))
       }
       case exprStmt: ExprStmt => {
         // connect with given prev statement
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, exprStmt.labelProps.label_init))
+
+        // construct the flow
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, exprStmt.labelProps.label_init))
       }
       case ifStmt: IfStmt => {
         this.dotNotationLines = this.dotNotationLines ++ ifStmt.dotLines
+
+        // constrcut the flow
+        this.flow = this.flow ++ ifStmt.labelProps.label_flow
       }
       case whileStmt: WhileStmt => {
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${whileStmt.labelProps.label_init}")
         this.dotNotationLines = this.dotNotationLines ++ whileStmt.dotLines
+
+        // construct the flow
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, whileStmt.labelProps.label_init))
+        this.flow = this.flow ++ whileStmt.labelProps.label_flow
       }
       case blockStmt: BlockStmt => {
         this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => s"${p} -> ${blockStmt.stmts(0).labelProps.label_init}") ++ blockStmt.dotLines
+
+        // construct the flow
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, blockStmt.stmts(0).labelProps.label_init)) ++ blockStmt.labelProps.label_flow
       }
       case emptyStmt: EmptyStmt =>
     }
