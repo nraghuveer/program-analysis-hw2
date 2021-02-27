@@ -87,9 +87,6 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
   }
 
   def worklist: Unit = {
-    println(worklist_queue)
-    println(succ)
-    println(pred)
     // dequeue a node, until list is empty
     while(worklist_queue.nonEmpty) {
       // calculate entry and exit of the current node
@@ -120,11 +117,7 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
         }
         case ExprStmt(AssignExpr(_, LVarRef(n), _)) => {
           val (entry, exit) = genEntryExit(n, curid)
-          if(exit == rdExit(curid)){
-            println("No difference!")
-          }
-          else{
-            println(s"difference! Adding ${succ(curid).toList}")
+          if(exit != rdExit(curid)){
             worklist_queue = worklist_queue ++ succ(curid).toList
           }
 
@@ -138,7 +131,6 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
           val exit = entry
           rdEntry = rdEntry.updated(curid, entry)
           if(exit != rdExit(curid)){
-//            println(s"Difference! Adding ${succ(curid).toList}")
             worklist_queue= worklist_queue ++ succ(curid).toList
           }
           rdExit = rdExit.updated(curid, exit)
