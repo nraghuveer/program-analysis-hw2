@@ -103,11 +103,7 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
       cur_stmt match {
         case varDeclStmt: VarDeclStmt => {
           val (entry, exit) = genEntryExit(varDeclStmt.name.str, curid)
-          if(exit == rdExit(curid)){
-            println("No difference!")
-          }
-          else{
-            println(s"difference! Adding ${succ(curid).toList}")
+          if(exit != rdExit(curid)){
             worklist_queue = worklist_queue ++ succ(curid).toList
           }
 

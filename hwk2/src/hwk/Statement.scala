@@ -231,7 +231,10 @@ class ControlFlowBuilder() {
         // recurse for all the statements block
         blockStmt.stmts.foreach(s => this.generateCodeLabels(s))
       }
-      case emptyStmt: EmptyStmt => this.idMap = this.idMap + (emptyStmt.id -> s"${emptyStmt.id}: Empty Stmt")
+      case emptyStmt: EmptyStmt => {
+        this.idMap = this.idMap + (emptyStmt.id -> s"${emptyStmt.id}: Empty Stmt")
+        this.stmtIdMap = this.stmtIdMap + (emptyStmt.id -> emptyStmt)
+      }
       case _ =>
     }
   }
@@ -242,7 +245,7 @@ class ControlFlowBuilder() {
     println("\n\n############ DOT FILE ###################\n\n")
     println("digraph G{")
 //    println("node [shape = rec, height=.3, nodesep=\"1\", ranksep=\"2\"];")
-    this.idMap.foreach(x => println(s""" ${x._1} [label="${x._2}", xlabel="${getXLabel(x._1)}"] """))
+    this.idMap.foreach(x => println(s""" ${x._1} [label="${x._1}: ${x._2}", xlabel="${getXLabel(x._1)}"] """))
     this.dotNotationLines.foreach(println)
     println("}")
     println("\n#######################################\n")
