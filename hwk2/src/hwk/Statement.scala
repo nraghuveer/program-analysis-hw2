@@ -312,6 +312,7 @@ class ControlFlowBuilder() {
         this.dotNotationLines = this.dotNotationLines ++ ifStmt.dotLines
 
         // constrcut the flow
+        this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, ifStmt.id))
         this.flow = this.flow ++ ifStmt.labelProps.label_flow
       }
       case whileStmt: WhileStmt => {

@@ -4,7 +4,8 @@ import scala.collection.mutable
 import scala.collection.mutable.Queue;
 
 case class Analysis(statement: Statement) extends ControlFlowBuilder {
-
+  type Pair = (String, Long)
+  val variables: Set[String] = vars(statement);
   // all variables assigned in this program
   private def vars(stmt: Statement): Set[String] = {
     stmt match {
@@ -22,12 +23,8 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
     }
   }
 
-  val variables: Set[String] = vars(statement);
-
-  type Pair = (String, Long)
   this.build(statement, StartStatement())
   this.generateCodeLabels(statement)
-//  this.build_program_flow(statement, StartStatement());
 
   var succ: Map[Long, Set[Long]] = this.flow.map(_._1).map(p => (p ->
     this.flow.filter(_._1 == p).map(_._2).map(_.asInstanceOf[Long]).toSet
@@ -36,17 +33,14 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
     this.flow.filter(_._2 == p).map(_._1).map(_.asInstanceOf[Long]).toSet
     )).toMap
 
-  // remove -1 from the pred and succ
-  pred = pred.filter(!_._2.contains(-1))
-  pred = pred ++ succ(-1).map((_, Set[Long]())).toMap
-  succ = succ.filter(_._1 != -1)
 
   var worklist_queue = new mutable.Queue[Long]();
   worklist_queue = worklist_queue ++ this.succ.map(_._1).map(_.asInstanceOf[Long]).toSeq.sorted.toList
-
   val default_entry: List[Pair] = variables.map(t => (t, -1).asInstanceOf[Pair]).toList
   var rdExit: Map[Long, List[Pair]] = worklist_queue.map((_ -> default_entry)).toMap
+  rdExit = rdExit + (-1.asInstanceOf[Long] -> List[Pair]())
   var rdEntry: Map[Long, List[Pair]] = worklist_queue.map((_ -> default_entry)).toMap
+  rdEntry = rdEntry + (-1.asInstanceOf[Long] -> List[Pair]())
 
   override def getXLabel(id: Long): String = {
     if(id == -1){
@@ -135,6 +129,7 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
           rdEntry = rdEntry.updated(curid, entry)
           rdExit = rdExit.updated(curid, exit)
         }
+        case startStatement: StartStatement => {}
         case _ => {
           // Attach the preds' exit to entry and entry to exit
           val entry = pairUnion(pred(cur_stmt.id).map(rdExit(_)).toList)
