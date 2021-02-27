@@ -26,13 +26,15 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
   this.build(statement, StartStatement())
   this.generateCodeLabels(statement)
 
-  var succ: Map[Long, Set[Long]] = this.flow.map(_._1).map(p => (p ->
-    this.flow.filter(_._1 == p).map(_._2).map(_.asInstanceOf[Long]).toSet
-    )).toMap
-  var pred: Map[Long, Set[Long]] = this.flow.map(_._2).map(p => (p ->
-    this.flow.filter(_._2 == p).map(_._1).map(_.asInstanceOf[Long]).toSet
-    )).toMap
+  var succ: Map[Long, Set[Long]] = this.stmtIdMap.groupBy(_._1).map { case (k,v) => (k,
+    // get from flow with index 1
+    this.flow.filter(_._1 == k).map(_._2.asInstanceOf[Long]).toSet)
+  }
 
+  var pred: Map[Long, Set[Long]] = this.stmtIdMap.groupBy(_._1).map { case (k,v) => (k,
+    // get from flow with index 1
+    this.flow.filter(_._2 == k).map(_._1.asInstanceOf[Long]).toSet)
+  }
 
   var worklist_queue = new mutable.Queue[Long]();
   worklist_queue = worklist_queue ++ this.succ.map(_._1).map(_.asInstanceOf[Long]).toSeq.sorted.toList
@@ -136,7 +138,7 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
           val exit = entry
           rdEntry = rdEntry.updated(curid, entry)
           if(exit != rdExit(curid)){
-            println(s"Difference! Adding ${succ(curid).toList}")
+//            println(s"Difference! Adding ${succ(curid).toList}")
             worklist_queue= worklist_queue ++ succ(curid).toList
           }
           rdExit = rdExit.updated(curid, exit)
@@ -144,6 +146,7 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
     }
   }
 
+    println("+++++++++++++++++Reachind Definitions+++++++++++++++++++++++++++++")
     println("Entry")
     rdEntry.toSeq.sortBy(_._1).foreach(p => println(p._1 + " -> " + p._2))
     println("++++++++++++++")

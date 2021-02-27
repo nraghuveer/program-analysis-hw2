@@ -309,6 +309,7 @@ class ControlFlowBuilder() {
         this.flow = this.flow ++ prev_stmt.labelProps.label_final.map(p => (p, exprStmt.labelProps.label_init))
       }
       case ifStmt: IfStmt => {
+        this.dotNotationLines = this.dotNotationLines ++ prev_stmt.labelProps.label_final.map(p => makeDotLine(p, ifStmt.labelProps.label_init))
         this.dotNotationLines = this.dotNotationLines ++ ifStmt.dotLines
 
         // constrcut the flow
