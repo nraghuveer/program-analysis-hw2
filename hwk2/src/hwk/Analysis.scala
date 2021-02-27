@@ -1,7 +1,6 @@
 package hwk
 
-import scala.collection.mutable
-import scala.collection.mutable.Queue;
+import scala.collection.mutable;
 
 case class Analysis(statement: Statement) extends ControlFlowBuilder {
   type Pair = (String, Long)
@@ -62,8 +61,9 @@ case class Analysis(statement: Statement) extends ControlFlowBuilder {
   }
 
   private def genEntryExit(name: String, curid: Long): Tuple2[List[Pair], List[Pair]] = {
-    val entry = if (pred(curid).size > 0) pairUnion(pred(curid).map(rdExit(_)).toList) else rdEntry(curid)
-    val genset = List((name, curid))
+    var entry: List[Pair] = if (pred(curid).size > 0) pairUnion(pred(curid).map(rdExit(_)).toList) else rdEntry(curid)
+    // add variables with -1 if not defined
+    entry = entry ++ variables.diff(entry.map(_._1).distinct.toSet).map((_, -1))
     // remove all the pairs with this variable
     (entry, entry.filter(p => p._1 != name).toList :+ (name, curid))
   }
